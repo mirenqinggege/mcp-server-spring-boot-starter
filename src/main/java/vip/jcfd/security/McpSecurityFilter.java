@@ -4,6 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -13,7 +15,8 @@ import java.io.IOException;
 
 public class McpSecurityFilter extends OncePerRequestFilter {
 
-    private static final String BEARER_PREFIX = "Bearer ";
+    private static final Logger log = LoggerFactory.getLogger(McpSecurityFilter.class);
+    private static final String BEARER_PREFIX = "bearer ";
 
     private final McpAuthenticator authenticator;
     private final McpServerProperties properties;
@@ -30,9 +33,16 @@ public class McpSecurityFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String token = extractToken(request);
+        if (token == null || token.isEmpty()) {
+            log.debug("MCP authentication failed: no token provided for {} {}", request.getMethod(), request.getRequestURI());
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "MCP authentication failed: no token");
+            return;
+        }
+
         Authentication auth = authenticator.authenticate(token);
 
         if (auth == null) {
+            log.debug("MCP authentication failed: invalid token for {} {}", request.getMethod(), request.getRequestURI());
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "MCP authentication failed");
             return;
         }
@@ -55,14 +65,15 @@ public class McpSecurityFilter extends OncePerRequestFilter {
 
         // 消息端点 (POST): 从 Authorization: Bearer xxx 获取
         String header = request.getHeader(sec.getTokenHeaderName());
-        if (header != null && header.startsWith(BEARER_PREFIX)) {
-            return header.substring(BEARER_PREFIX.length());
+        if (header != null && header.toLowerCase().startsWith(BEARER_PREFIX)) {
+            return header.substring(header.indexOf(' ') + 1);
         }
         return header;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !properties.getSecurity().isEnabled();
+        return !properties.getSecurity().isEnabled()
+                || "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 }
