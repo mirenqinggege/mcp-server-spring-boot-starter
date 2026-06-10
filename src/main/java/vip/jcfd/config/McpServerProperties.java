@@ -21,4 +21,21 @@ public class McpServerProperties {
     public void setServerName(String serverName) { this.serverName = serverName; }
     public String getServerVersion() { return serverVersion; }
     public void setServerVersion(String serverVersion) { this.serverVersion = serverVersion; }
+
+    private final Security security = new Security();
+
+    public Security getSecurity() { return security; }
+
+    public static class Security {
+        private boolean enabled = true;
+        private String tokenParameterName = "token";
+        private String tokenHeaderName = "Authorization";
+
+        public boolean isEnabled() { return enabled; }
+        public void setEnabled(boolean enabled) { this.enabled = enabled; }
+        public String getTokenParameterName() { return tokenParameterName; }
+        public void setTokenParameterName(String tokenParameterName) { this.tokenParameterName = tokenParameterName; }
+        public String getTokenHeaderName() { return tokenHeaderName; }
+        public void setTokenHeaderName(String tokenHeaderName) { this.tokenHeaderName = tokenHeaderName; }
+    }
 }
