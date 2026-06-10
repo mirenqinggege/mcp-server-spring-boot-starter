@@ -1,6 +1,7 @@
 package vip.jcfd.config;
 
 import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -14,6 +15,7 @@ import vip.jcfd.security.McpAuthenticator;
 import vip.jcfd.security.McpSecurityFilter;
 
 @AutoConfiguration
+@AutoConfigureBefore(McpAutoConfiguration.class)
 @ConditionalOnClass({Authentication.class, OncePerRequestFilter.class, WebSecurityConfiguration.class})
 @ConditionalOnBean(McpAuthenticator.class)
 @ConditionalOnProperty(prefix = "mcp.server.security", name = "enabled", havingValue = "true", matchIfMissing = true)

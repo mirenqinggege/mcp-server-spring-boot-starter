@@ -68,7 +68,7 @@ public class McpSecurityFilter extends OncePerRequestFilter {
         if (header != null && header.toLowerCase().startsWith(BEARER_PREFIX)) {
             return header.substring(header.indexOf(' ') + 1);
         }
-        return header;
+        return null;
     }
 
     @Override
