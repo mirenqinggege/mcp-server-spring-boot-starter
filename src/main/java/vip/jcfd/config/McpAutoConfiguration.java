@@ -17,6 +17,10 @@ import vip.jcfd.scanner.McpToolScanner;
 import vip.jcfd.scanner.ToolMethodInfo;
 
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
 
 @AutoConfiguration
@@ -60,6 +64,7 @@ public class McpAutoConfiguration {
             HttpServletSseServerTransportProvider transport,
             McpServerProperties properties,
             JacksonMcpJsonMapper jsonMapper,
+            ObjectMapper objectMapper,
             McpToolScanner scanner) {
 
         McpSyncServer server = McpServer.sync(transport)
@@ -79,7 +84,7 @@ public class McpAutoConfiguration {
                     .tool(tool)
                     .callHandler((exchange, request) -> {
                         try {
-                            Object[] args = resolveArguments(toolInfo, request);
+                            Object[] args = resolveArguments(toolInfo, request, objectMapper);
                             Object result = toolInfo.getMethod().invoke(toolInfo.getBean(), args);
                             return buildResult(result, jsonMapper);
                         } catch (Exception e) {
@@ -105,11 +110,7 @@ public class McpAutoConfiguration {
         List<String> required = new ArrayList<>();
 
         for (ToolMethodInfo.ParamInfo param : toolInfo.getParams()) {
-            Map<String, Object> prop = new LinkedHashMap<>();
-            prop.put("type", mapJavaTypeToJsonType(param.getType()));
-            if (!param.getDescription().isEmpty()) {
-                prop.put("description", param.getDescription());
-            }
+            Map<String, Object> prop = buildParamSchema(param);
             properties.put(param.getName(), prop);
             if (param.isRequired()) {
                 required.add(param.getName());
@@ -121,24 +122,77 @@ public class McpAutoConfiguration {
                 false, null, null);
     }
 
+    private Map<String, Object> buildParamSchema(ToolMethodInfo.ParamInfo param) {
+        Map<String, Object> prop = new LinkedHashMap<>();
+        Class<?> type = param.getType();
+        String jsonType = mapJavaTypeToJsonType(type);
+        prop.put("type", jsonType);
+
+        if ("array".equals(jsonType)) {
+            Class<?> elementType = inferElementType(param);
+            if (elementType != null) {
+                Map<String, Object> items = new LinkedHashMap<>();
+                items.put("type", mapJavaTypeToJsonType(elementType));
+                prop.put("items", items);
+            }
+        }
+
+        if (!param.getDescription().isEmpty()) {
+            prop.put("description", param.getDescription());
+        }
+        return prop;
+    }
+
+    private Class<?> inferElementType(ToolMethodInfo.ParamInfo param) {
+        Class<?> type = param.getType();
+        if (type.isArray()) {
+            return type.getComponentType();
+        }
+        if (Collection.class.isAssignableFrom(type) && param.getGenericType() != null) {
+            Type genericType = param.getGenericType();
+            if (genericType instanceof ParameterizedType pt) {
+                Type[] args = pt.getActualTypeArguments();
+                if (args.length == 1 && args[0] instanceof Class<?> clazz) {
+                    return clazz;
+                }
+            }
+        }
+        return null;
+    }
+
     private String mapJavaTypeToJsonType(Class<?> javaType) {
-        if (javaType == String.class) return "string";
+        if (javaType == String.class || javaType == CharSequence.class) return "string";
         if (javaType == int.class || javaType == Integer.class
-                || javaType == long.class || javaType == Long.class) return "integer";
+                || javaType == long.class || javaType == Long.class
+                || javaType == short.class || javaType == Short.class
+                || javaType == byte.class || javaType == Byte.class
+                || javaType == BigInteger.class) return "integer";
         if (javaType == boolean.class || javaType == Boolean.class) return "boolean";
         if (javaType == double.class || javaType == Double.class
                 || javaType == float.class || javaType == Float.class
-                || javaType == java.math.BigDecimal.class) return "number";
-        return "string";
+                || javaType == BigDecimal.class || javaType == Number.class) return "number";
+        if (javaType.isArray() || Collection.class.isAssignableFrom(javaType)) return "array";
+        if (Map.class.isAssignableFrom(javaType)) return "object";
+        return "object";
     }
 
-    private Object[] resolveArguments(ToolMethodInfo toolInfo, McpSchema.CallToolRequest request) {
+    private Object[] resolveArguments(ToolMethodInfo toolInfo, McpSchema.CallToolRequest request, ObjectMapper objectMapper) {
         Map<String, Object> args = request.arguments();
         if (args == null) args = Map.of();
         List<ToolMethodInfo.ParamInfo> params = toolInfo.getParams();
         Object[] result = new Object[params.size()];
         for (int i = 0; i < params.size(); i++) {
-            result[i] = args.get(params.get(i).getName());
+            Object rawValue = args.get(params.get(i).getName());
+            if (rawValue == null) {
+                result[i] = null;
+                continue;
+            }
+            Class<?> targetType = params.get(i).getType();
+            if (targetType.isInstance(rawValue)) {
+                result[i] = rawValue;
+            } else {
+                result[i] = objectMapper.convertValue(rawValue, targetType);
+            }
         }
         return result;
     }

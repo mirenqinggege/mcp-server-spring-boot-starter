@@ -1,6 +1,7 @@
 package vip.jcfd.scanner;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Type;
 import java.util.List;
 
 public class ToolMethodInfo {
@@ -30,17 +31,21 @@ public class ToolMethodInfo {
         private final String description;
         private final boolean required;
         private final Class<?> type;
+        private final Type genericType;
 
-        public ParamInfo(String name, String description, boolean required, Class<?> type) {
+        public ParamInfo(String name, String description, boolean required,
+                         Class<?> type, Type genericType) {
             this.name = name;
             this.description = description;
             this.required = required;
             this.type = type;
+            this.genericType = genericType;
         }
 
         public String getName() { return name; }
         public String getDescription() { return description; }
         public boolean isRequired() { return required; }
         public Class<?> getType() { return type; }
+        public Type getGenericType() { return genericType; }
     }
 }

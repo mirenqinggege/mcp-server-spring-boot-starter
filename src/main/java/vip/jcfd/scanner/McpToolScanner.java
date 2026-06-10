@@ -50,7 +50,8 @@ public class McpToolScanner implements BeanPostProcessor {
                     : (paramNames != null ? paramNames[i] : "arg" + i);
             String desc = (tp != null) ? tp.description() : "";
             boolean required = (tp == null || tp.required());
-            result.add(new ToolMethodInfo.ParamInfo(name, desc, required, parameters[i].getType()));
+            result.add(new ToolMethodInfo.ParamInfo(name, desc, required,
+                    parameters[i].getType(), parameters[i].getParameterizedType()));
         }
         return result;
     }
